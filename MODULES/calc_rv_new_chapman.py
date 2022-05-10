@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import glob
 import scipy as sp
 import astropy.io.fits as pf
+from astropy.io import ascii
+from astropy.coordinates import Angle
 from scipy import interpolate
 from scipy.stats import chisquare
 from scipy.optimize import curve_fit
@@ -35,9 +37,9 @@ c = 299792.458
 # define velocity range of potential RVs
 #vel_step = 10.
 #vel_step = 5.
-vel_step = 2.
-#vel_step = 1.
-vel_range = np.arange(-100, 101, vel_step)
+#vel_step = 2.
+vel_step = 1.
+vel_range = np.arange(-100, 51, vel_step)
 #vel_range = np.arange(-50, 51, vel_step)
 
 # vsini step - that of the Gray profiles
@@ -50,6 +52,7 @@ vsini_step = 1
 # resolution of wavelength grid in Angstroms
 # better resolution significantly slows down
 # the CCF calculation
+#wlen_step = 0.01
 wlen_step = 0.01
 # best value as a compromise of resolution
 # and time is 0.02
@@ -145,7 +148,57 @@ def get_mask_early_type(SpT):
         return wlen, flux
 
 
+def ReadSpec_ELODIE_fits(fits_file):
 
+        """Function to read in fits file of high
+        resolution spectra and then return wlen 
+        and flux arrays for ELODIE archival product (no bar corr applied here)"""
+        
+        # open fits file
+        image=pf.open(fits_file)
+        
+        # retrieve flux and header
+        flux=image[0].data
+        header=image[0].header
+        
+        # get object name
+        #star_name = 'HD'+str(header['NOOBJET3'])
+        star_name = header['OBJECT']
+        
+        # get coords
+        ra_val_h = header['ALPHA']
+        dec_val_d = header['DELTA']
+        # transform in deg
+        kk=Angle(ra_val_h+' hours')
+        ra_val=kk.deg
+        kk=Angle(dec_val_d+' degree')
+        dec_val=kk.deg
+        
+        # create wavelength array
+        wlen=-header['CRPIX1']*header['CDELT1'] + \
+                  header['CRVAL1'] + \
+                  np.arange(1,len(flux)+1)*header['CDELT1']
+        
+        # file type to distinguish between        
+        #file_type = header['HIERARCH ESO PRO CATG']
+        
+        # date of observations
+        mjd_obs = header['MJD-OBS']
+                  
+        # get barycentric correction      
+        bary_correc = 0.
+                  
+        image.close()
+        
+        # define star_name again with file type and obs date
+        #star_name = "%s_%s" % (star_name.replace(" ", ""), \
+        #file_type)
+        kk1=wlen[~np.isnan(flux)]
+        kk2=flux[~np.isnan(flux)]
+        wlen=kk1
+        flux=kk2
+        return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc
+     
 
 
 def ReadSpec_UVES_fits(fits_file):
@@ -453,6 +506,11 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         indi=np.argsort(wlen_obs)
         wlen_obs=wlen_obs[indi]
         flux_obs=flux_obs[indi]
+        #print(min(wlen_obs))
+        mascara= wlen_obs > 4950.
+        wlen_obs=wlen_obs[mascara]
+        flux_obs=flux_obs[mascara] 
+        #plt.plot(wlen_obs, flux_obs,label='first')
         # wlen_unit is important should either be 'A' for Angstrom
         # or 'N' for nanometers.  Mask should always be in Angstroms
         
@@ -480,7 +538,7 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
                         wlen_obs_new.append(w_obs)
                         flux_obs_new.append(f_obs)
         
-        
+        #plt.plot(wlen_obs_new, flux_obs_new, label='more test')
         wlen_mask_new, flux_mask_new = [], []
         for w_mask, f_mask in zip(wlen_mask, flux_mask):
                 if w_mask > abs_min and w_mask < abs_max:
@@ -507,10 +565,13 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         # perform interpolation for obs spectrum
         f = interpolate.interp1d(wlen_obs_new, flux_obs_new, 'linear')
         flux_obs_lin = f(wlen_lin)
+        #flux_obs_lin=flux_obs_lin/np.median(flux_obs_lin)
+        #plt.plot(wlen_lin,flux_obs_lin,label='interp')
         
         # 'flatten' spectrum
         f = np.poly1d(np.polyfit(wlen_lin, flux_obs_lin, 6))
         poly_flux = f(wlen_lin)
+        #plt.plot(wlen_lin,poly_flux, label='cont')
         
         # divide by poly_flux to 'flatten' spectrum
         flux_obs_lin = flux_obs_lin / poly_flux
@@ -523,7 +584,9 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         
         # plot spectrum if plot_flag is True
         if plot_flag == True:
+                #plt.plot(wlen_obs, flux_obs, label='second', alpha=0.5)
                 plt.plot(wlen_lin, flux_obs_lin, alpha=0.5)
+                #plt.legend()
                 plt.show()
         
         
@@ -915,6 +978,11 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         
         # try and better set continuum to zero
         data_y = data_y - np.median(data_y)
+
+        # write CCF in a file
+        perfil=np.column_stack((data_x,data_y))
+        ccf_output = "./OUTPUTS/ccf_%s_%s.csv" % (obj_name, mask_type)
+        ascii.write(perfil,output=ccf_output, format='csv',overwrite=True, names=['vel','ccf'])
         
         # initial guess parameters
         init_vals = [max(data_y), data_x[list(data_y).index(max(data_y))], 100] 
@@ -1074,7 +1142,6 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         vsini_calc_val, min_chi, stretch_fact = get_vsini(data_x, data_y)
         
         
-        
         # now make a plot of the results
         fig=plt.figure(num=None, figsize=(11, 11), dpi=80, facecolor='w', \
         edgecolor='k', tight_layout=True)
@@ -1087,7 +1154,7 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         label='RV: %.1f\nDepth: %.3f\nWidth: %.1f\nAD stat: %.3f (%s)\nMJD: %.2f' % (centroid, depth_val, \
                                                                                                                                                                 np.sqrt(width), ad_stat, \
                                                                                                                                                                 sig_level, mjd_obs))
-        plt.xlabel("Velocity (km s$^{-1}$)")
+        plt.xlabel("Velocity (km/s)")
         plt.xlim(min(x_lin), max(x_lin))
         plt.ylabel("CCF")
         plt.ylim(-0.01, max(depth_array)+0.01)
@@ -1103,7 +1170,7 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
 
         # plot bisector
         plt.errorbar(bisector_array, depth_array, fmt='o', mfc='black', mec='black', alpha=0.5, ms=2)
-        plt.xlabel("Velocity (km s$^{-1}$)")
+        plt.xlabel("Velocity (km/s)")
         plt.ylabel("CCF")
         plt.xlim(min(vel_span1), max(vel_span2))
         plt.ylim(-0.01, max(depth_array)+0.01)
@@ -1115,10 +1182,10 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         plt.xlim(min(vel_span1), max(vel_span2))
         plt.plot(data_x, ccf, color='black', lw=1)
         plt.plot(np.asarray(vsini_vel)+centroid, vsini_profile, '-', color='red', lw=1.5, \
-        label='Best fit: %i km s$^{-1}$\nStretch: %.1f' % (vsini_calc_val, stretch_fact))      
+        label='Best fit: %i km/s\nStretch: %.1f' % (vsini_calc_val, stretch_fact))      
         plt.ylim(-0.8, 1)
         plt.gca().invert_yaxis()
-        plt.xlabel("Velocity (km s$^{-1}$)")
+        plt.xlabel("Velocity (km/s)")
         plt.ylabel("Relative depth")
         plt.legend(frameon=False, loc='lower left', fontsize=12)
         
@@ -1175,7 +1242,7 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         
         plt.xlim(min(bisector_array)-0.2, max(bisector_array)+0.5)
         #plt.legend(frameon=False, loc='best', fontsize=12)
-        plt.xlabel("Velocity (km s$^{-1}$)")
+        plt.xlabel("Velocity (km/s)")
         
 
         # plot output
@@ -1206,6 +1273,9 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
 
         # first read in file and get spectrum
         if flag == 'fits':
+                if instrument == 'ELODIE':
+                        obj_name, ra_deg, dec_deg, mjd_obs, \
+                        wlen_obs, flux_obs, bary_correc = ReadSpec_ELODIE_fits(file_location)
                 if instrument == 'XSHOO_PH3':
                         obj_name, ra_deg, dec_deg, mjd_obs, \
                         wlen_obs, flux_obs, bary_correc = ReadSpec_XSHOO_PH3_fits(file_location)
@@ -1243,7 +1313,7 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         print ("Will now perform CCF fit for velocities...")
         velocity, ccf_profile, snr_median, central_wlen, wlen_range = \
         make_ccf(wlen_obs, flux_obs, wlen_mask, \
-                 flux_mask, bary_correc, wlen_unit='A', plot_flag=False)
+                 flux_mask, bary_correc, wlen_unit='A', plot_flag=True)
         
         print ("\nNow going to fit CCF with a Gaussian...")
         #mjd_obs = 2014.46838
@@ -1261,7 +1331,7 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         
         print ("************************************")
         print ("Summary of results:")
-        print ("\nRV: %.1f, sigma: %.1f, vsini: %i km/s" % (rv, width, vsini_calc_val))
+#       print ("\nRV: %.1f, sigma: %.1f, vsini: %i km/s" % (rv, width, vsini_calc_val))
         print ("************************************\n")
         #ra_deg=241.7980833
         #dec_deg=-39.0626944
