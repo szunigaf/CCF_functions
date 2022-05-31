@@ -1,0 +1,4 @@
+file					obj_name			ra_deg		dec_deg		mjd_obs		rv	width	depth vsini_cv  min_chi	snr_med mask  central_wlen	  wlen_range   BIS  b_b  b_b_err  c_b  ad_sig
+ADP.2019-02-28T01_12_40.064.fits     SW1057-2959_SCIENCE.SPECTRUM      164.34795    -29.99902    58541.345    -3.49    11.37    0.020    12      0.129    10.89    M4      5630.4    2377.4    -0.955    -87.344    3.869    0.428    0.15
+ADP.2019-02-28T01_12_40.064.fits     SW1057-2959_SCIENCE.SPECTRUM      164.34795    -29.99902    58541.345    -3.20    5.97    0.138    1      0.146    10.41    K0      5332.6    3101.1    -0.048    -0.881    0.396    -0.267    0.15
+ADP.2019-02-28T01_12_40.064.fits     SW1057-2959_SCIENCE.SPECTRUM      164.34795    -29.99902    58541.345    -3.20    5.97    0.138    1      0.146    10.41    K0      5332.6    3101.1    -0.048    -0.881    0.396    -0.262    0.15
