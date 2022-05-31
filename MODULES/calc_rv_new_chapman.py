@@ -13,7 +13,6 @@ import astropy.io.fits as pf
 from astropy.io import ascii
 from astropy.coordinates import Angle
 from scipy import interpolate
-from scipy.stats import chisquare
 from scipy.optimize import curve_fit
 import time
 import parallelised_ccf_class
@@ -39,7 +38,7 @@ c = 299792.458
 #vel_step = 5.
 #vel_step = 2.
 vel_step = 1.
-vel_range = np.arange(-100, 51, vel_step)
+vel_range = np.arange(-150, 150, vel_step)
 #vel_range = np.arange(-50, 51, vel_step)
 
 # vsini step - that of the Gray profiles
@@ -53,9 +52,9 @@ vsini_step = 1
 # better resolution significantly slows down
 # the CCF calculation
 #wlen_step = 0.01
-wlen_step = 0.01
 # best value as a compromise of resolution
 # and time is 0.02
+wlen_step = 0.02
 
 
 # Number of CPUs to use
@@ -507,9 +506,9 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         wlen_obs=wlen_obs[indi]
         flux_obs=flux_obs[indi]
         #print(min(wlen_obs))
-        mascara= wlen_obs > 4950.
-        wlen_obs=wlen_obs[mascara]
-        flux_obs=flux_obs[mascara] 
+        #mascara= wlen_obs > 4950.
+        #wlen_obs=wlen_obs[mascara]
+        #flux_obs=flux_obs[mascara] 
         #plt.plot(wlen_obs, flux_obs,label='first')
         # wlen_unit is important should either be 'A' for Angstrom
         # or 'N' for nanometers.  Mask should always be in Angstroms
@@ -1246,8 +1245,8 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         
 
         # plot output
-        plot_output = "./OUTPUTS/PDFS/ccf_%s_%s.pdf" % (obj_name, mask_type)
-        #plot_output = "./OUTPUTS/PDFS/ccf_%s_%s_%s.pdf" % (obj_name, mask_type, str(mjd_obs))
+        #plot_output = "./OUTPUTS/PDFS/ccf_%s_%s.pdf" % (obj_name, mask_type)
+        plot_output = "./OUTPUTS/PDFS/ccf_%s_%s_%s.pdf" % (obj_name, mask_type, str(mjd_obs))
         plt.savefig(plot_output)
         print ("Made a plot at: %s..." % plot_output)
         
@@ -1313,14 +1312,14 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         print ("Will now perform CCF fit for velocities...")
         velocity, ccf_profile, snr_median, central_wlen, wlen_range = \
         make_ccf(wlen_obs, flux_obs, wlen_mask, \
-                 flux_mask, bary_correc, wlen_unit='A', plot_flag=True)
+                 flux_mask, bary_correc, wlen_unit='A', plot_flag=False)
         
         print ("\nNow going to fit CCF with a Gaussian...")
         #mjd_obs = 2014.46838
         #print (mjd_obs)
         # fit Gaussian to CCF
-        plt.plot(velocity,ccf_profile)
-        plt.show()
+        #plt.plot(velocity,ccf_profile)
+        #plt.show()
         rv, width, depth, vsini_calc_val, min_chi, \
         BIS, b_b, stderr, c_b, ad_sig = fit_gaussian(obj_name, mask_type, velocity, ccf_profile, mjd_obs)
 
@@ -1331,7 +1330,7 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         
         print ("************************************")
         print ("Summary of results:")
-#       print ("\nRV: %.1f, sigma: %.1f, vsini: %i km/s" % (rv, width, vsini_calc_val))
+        print ("\nRV: %.1f, sigma: %.1f, vsini: %i km/s" % (rv, width, vsini_calc_val))
         print ("************************************\n")
         #ra_deg=241.7980833
         #dec_deg=-39.0626944
