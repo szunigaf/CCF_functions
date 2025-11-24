@@ -27,42 +27,8 @@ rc('text', usetex=True)
 rc('font',**{'family':'serif','serif':['Times'], 'size':'12','weight':'bold'})
 
 
-# global parameters
-# *******************************************
-
 # speed of light in km/s
 c = 299792.458
-
-# define velocity range of potential RVs
-#vel_step = 10.
-#vel_step = 5.
-#vel_step = 2.
-vel_step = 1.
-vel_range = np.arange(-150, 150, vel_step)
-#vel_range = np.arange(-50, 51, vel_step)
-
-# vsini step - that of the Gray profiles
-#vsini_step = 10.
-#vsini_step = 5
-#vsini_step = 2
-vsini_step = 1
-
-        
-# resolution of wavelength grid in Angstroms
-# better resolution significantly slows down
-# the CCF calculation
-#wlen_step = 0.01
-# best value as a compromise of resolution
-# and time is 0.02
-wlen_step = 0.02
-
-
-# Number of CPUs to use
-NCPU = 8
-
-# *******************************************
-
-
 
 
 def add_subplot_axes(ax,rect):
@@ -113,7 +79,14 @@ def get_mask(SpT):
         if glob.glob(mask_direc+SpT+".mas") != []:
         
                 data = np.loadtxt(mask_direc+SpT+".mas", unpack=True)
-                wlen1, wlen2, prof, wlen_av = data
+                if SpT == 'carmenes_M6':
+                        wlen1, prof = data
+                else:
+                        if SpT == 'M2' or SpT =='M5_5_IR' or SpT =='M2_IR':
+                                wlen1, wlen2, prof = data
+                        else:
+                                wlen1, wlen2, prof, wlen_av = data
+
                 
         else:
                 print ("\nMask not found for Spt: %s\n" % SpT)
@@ -135,18 +108,6 @@ def get_mask(SpT):
         return wlen_arr, flux_arr
 
 
-def get_mask_early_type(SpT):
-        mask_direc = "/Users/pelliott/ASTRO/Data/CORREL/cors1d_py/MASKS/"
-
-        # find mask and return the wlen + profile arrays
-        if glob.glob(mask_direc+SpT+".mas") != []:
-        
-                data = np.loadtxt(mask_direc+SpT+".mas", unpack=True)
-                wlen, x, x2, flux = data
-                
-        return wlen, flux
-
-
 def ReadSpec_ELODIE_fits(fits_file):
 
         """Function to read in fits file of high
@@ -161,7 +122,6 @@ def ReadSpec_ELODIE_fits(fits_file):
         header=image[0].header
         
         # get object name
-        #star_name = 'HD'+str(header['NOOBJET3'])
         star_name = header['OBJECT']
         
         # get coords
@@ -178,70 +138,26 @@ def ReadSpec_ELODIE_fits(fits_file):
                   header['CRVAL1'] + \
                   np.arange(1,len(flux)+1)*header['CDELT1']
         
-        # file type to distinguish between        
-        #file_type = header['HIERARCH ESO PRO CATG']
-        
         # date of observations
         mjd_obs = header['MJD-OBS']
                   
         # get barycentric correction      
         bary_correc = 0.
+
+        instrument_name = "ELODIE"
                   
         image.close()
         
-        # define star_name again with file type and obs date
-        #star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        #file_type)
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
+
         kk1=wlen[~np.isnan(flux)]
         kk2=flux[~np.isnan(flux)]
         wlen=kk1
         flux=kk2
+
         return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc
      
-
-
-def ReadSpec_UVES_fits(fits_file):
-
-        """Function to read in fits file of high
-        resolution spectra and then return wlen 
-        and flux arrays"""
-        
-        # open fits file
-        image=pf.open(fits_file)
-        
-        # retrieve flux and header
-        flux=image[0].data
-        header=image[0].header
-        
-        # get object name
-        star_name = header['HIERARCH ESO OBS TARG NAME'].replace(" ", "")
-        
-        # get coords
-        ra_val = header['RA']
-        dec_val = header['DEC']
-        
-        # create wavelength array
-        wlen=-header['CRPIX1']*header['CDELT1'] + \
-                  header['CRVAL1'] + \
-                  np.arange(1,len(flux)+1)*header['CDELT1']
-        
-        # file type to distinguish between        
-        file_type = header['HIERARCH ESO PRO CATG']
-        
-        # date of observations
-        mjd_obs = header['MJD-OBS']
-                  
-        # get barycentric correction      
-        bary_correc = header['HIERARCH ESO QC VRAD BARYCOR']      
-                  
-        image.close()
-        
-        # define star_name again with file type and obs date
-        star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        file_type)
-        
-        return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc
-        
 
 def combine_spec(fits1, fits2):
 
@@ -255,8 +171,13 @@ def combine_spec(fits1, fits2):
         
         # retrieve headers
         header1=image1[0].header
-        header2=image2[0].header           
-        
+        header2=image2[0].header    
+
+        # retrieve flux and header
+        #data = image[1].data
+        wlen1, flux1, err1 = image1[1].data['WAVE'][0],image1[1].data['FLUX'][0],image1[1].data['ERR'][0]
+        wlen2, flux2, err2 = image2[1].data['WAVE'][0],image2[1].data['FLUX'][0],image2[1].data['ERR'][0]
+
         # get object name
         star_name = header1['HIERARCH ESO OBS TARG NAME'].replace(" ", "")
         
@@ -264,23 +185,9 @@ def combine_spec(fits1, fits2):
         ra_val = header1['RA']
         dec_val = header1['DEC']
         
-        # read wavelength and flux
-        spectrum1=image1[1].data
-        spectrum2=image2[1].data
-        #flux1=spectrum1['FLUX'][0,:]
-        #flux2=spectrum2['FLUX'][0,:]
-        flux1=spectrum1['FLUX_REDUCED'][0,:]
-        flux2=spectrum2['FLUX_REDUCED'][0,:]
-        wlen1=spectrum1['WAVE'][0,:]                  
-        wlen2=spectrum2['WAVE'][0,:]
-        
         # concatenate arrays
         wlen = np.concatenate((wlen1, wlen2), axis=0)
         flux = np.concatenate((flux1, flux2), axis=0)
-        print(len(wlen), wlen.max(), wlen.min())
-        
-        # file type to distinguish between        
-        file_type = header1['HIERARCH ESO PRO CATG']
         
         # date of observations
         mjd_obs = header1['MJD-OBS']
@@ -290,59 +197,16 @@ def combine_spec(fits1, fits2):
                   
         image1.close()
         image2.close()
+
+        instrument_name = "UVES_COMB"
         
-        # define star_name again with file type and obs date
-        star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        file_type)
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
         
         return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     
 
 
 def ReadSpec_FEROS_fits(fits_file):
-
-        """Function to read in fits file of high
-        resolution spectra and then return wlen 
-        and flux arrays"""
-        
-        # open fits file
-        image=pf.open(fits_file)
-        
-        # retrieve flux and header
-        flux=image[0].data
-        header=image[0].header
-        
-        # get object name
-        star_name = header['OBJECT']
-        
-        # get coords
-        ra_val = header['RA']
-        dec_val = header['DEC']
-        
-        # create wavelength array
-        wlen=-header['CRPIX1']*header['CDELT1'] + \
-                  header['CRVAL1'] + \
-                  np.arange(1,len(flux)+1)*header['CDELT1']
-                  
-        print ("Min. - Max. wlen: %i - %i \n" % (wlen[0], wlen[-1]))
-        
-        # file type to distinguish between        
-        file_type = header['HIERARCH ESO PRO CATG']
-        
-        # date of observations
-        mjd_obs = header['MJD-OBS']
-                  
-        # barycentric correction already applied for FEROS
-        bary_correc = 0
-                  
-        image.close()
-        
-        # define star_name again with file type and obs date
-        star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        file_type)
-        
-        return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc
-
-def ReadSpec_UVES_PH3_fits(fits_file):
 
         """Function to read in fits file of high
         resolution spectra and then return wlen 
@@ -364,29 +228,66 @@ def ReadSpec_UVES_PH3_fits(fits_file):
         ra_val = header['RA']
         dec_val = header['DEC']
         
-        print ("Min. - Max. wlen: %i - %i \n" % (wlen[0], wlen[-1]))
-        
-        # file type to distinguish between        
-        file_type = header['PRODCATG']
+        print("")
+        print ("Min. - Max. wlen from spectra: %i - %i \n" % (wlen[0], wlen[-1]))
         
         # date of observations
         mjd_obs = header['MJD-OBS']
                   
-        # barycentric correction already applied for FEROS
-        bary_correc = header['HIERARCH ESO QC VRAD BARYCOR']
-        #bary_correc = 0
+        # barycentric correction
+        bary_correc = header['HIERARCH ESO DRS BARYCORR      ']
                   
         image.close()
+
+        instrument_name = "FEROS"
         
-        # define star_name again with file type and obs date
-        star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        file_type)
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
+
+        return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc
+
+def ReadSpec_UVES_fits(fits_file):
+
+        """Function to read in fits file of high
+        resolution spectra and then return wlen 
+        and flux arrays"""
         
-        print (star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     )
+        # open fits file
+        image=pf.open(fits_file)
+        
+        # retrieve flux and header
+        #data = image[1].data
+        wlen, flux, err = image[1].data['WAVE'][0],image[1].data['FLUX'][0],image[1].data['ERR'][0]
+        
+        header=image[0].header
+        
+        # get object name
+        star_name = header['OBJECT']
+        
+        # get coords
+        ra_val = header['RA']
+        dec_val = header['DEC']
+        
+        print("")
+        print ("Min. - Max. wlen from spectra: %i - %i \n" % (wlen[0], wlen[-1]))
+        
+        
+        # date of observations
+        mjd_obs = header['MJD-OBS']
+                  
+        # barycentric correction
+        bary_correc = header['HIERARCH ESO QC VRAD BARYCOR']
+                  
+        image.close()
+
+        instrument_name = "UVES"
+        
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
         
         return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     
 
-def ReadSpec_XSHOO_PH3_fits(fits_file):
+def ReadSpec_XSHOO_fits(fits_file):
 
         """Function to read in fits file of high
         resolution spectra and then return wlen 
@@ -408,31 +309,26 @@ def ReadSpec_XSHOO_PH3_fits(fits_file):
         ra_val = header['RA']
         dec_val = header['DEC']
         
-        print ("Min. - Max. wlen: %i - %i \n" % (wlen[0], wlen[-1]))
-        
-        # file type to distinguish between        
-        file_type = header['PRODCATG']
+        print("")
+        print ("Min. - Max. wlen from spectra: %i - %i \n" % (wlen[0], wlen[-1]))
         
         # date of observations
         mjd_obs = header['MJD-OBS']
                   
-        # barycentric correction already applied for FEROS
+        # barycentric correction already applied for XSHOOTER
         bary_correc = header['HIERARCH ESO QC VRAD BARYCOR']
         #bary_correc = 0
                   
         image.close()
+
+        instrument_name = "XSHOO"
         
-        # define star_name again with file type and obs date
-        star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        file_type)
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
         
-        print (star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     )
-        #plt.plot(wlen,flux)
-        #plt.show()
+        
         return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     
 
-
-        
 
 def ReadSpec_HARPS_fits(fits_file):
 
@@ -445,42 +341,82 @@ def ReadSpec_HARPS_fits(fits_file):
         
         # retrieve flux and header
         data = image[1].data
-        wlen, flux, err = data[0]
-        
+
+        wlen = data['WAVE'][0] # Armstrong
+        flux = data['FLUX'][0]
+        err = data['ERR'][0]
+                
         header=image[0].header
-        
+                
         # get object name
         star_name = header['OBJECT']
-        
+                
         # get coords
         ra_val = header['RA']
         dec_val = header['DEC']
-        
-        print ("Min. - Max. wlen: %i - %i \n" % (wlen[0], wlen[-1]))
-        
-        # file type to distinguish between        
-        file_type = header['PRODCATG']
-        
+                
+        print("")
+        print ("Min. - Max. wlen from spectra: %i - %i \n" % (wlen[0], wlen[-1]))
+                
         # date of observations
         mjd_obs = header['MJD-OBS']
-                  
+
         # barycentric correction already applied for FEROS
         bary_correc = 0
                   
         image.close()
+
+        instrument_name = "HARPS"
         
-        # define star_name again with file type and obs date
-        star_name = "%s_%s" % (star_name.replace(" ", ""), \
-        file_type)
-        
-        print (star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     )
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
         
         return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc     
 
+def ReadSpec_NIRPS_fits(fits_file):
+
+        """Function to read in fits file of high
+        resolution spectra and then return wlen 
+        and flux arrays"""
+
+        # open fits file
+        image=pf.open(fits_file)
+
+        # retrieve flux and header
+        data = image[1].data
+
+        wlen = data['WAVE'][0] # Armstrong
+        flux = data['FLUX'][0]
+        err = data['ERR'][0]
+
+        header=image[0].header
+
+        # get object name
+        star_name = header['OBJECT']
+
+        # get coords
+        ra_val = header['RA']
+        dec_val = header['DEC']
+
+        print("")
+        print ("Min. - Max. wlen from spectra: %i - %i \n" % (wlen[0], wlen[-1]))
 
 
+        # date of observations
+        mjd_obs = header['MJD-OBS']
 
-        
+        # barycentric correction already applied for FEROS
+        bary_correc = 0
+
+        image.close()
+
+        instrument_name = "NIRPS"
+
+        # define star_name again with instrument name
+        star_name = "%s_%s" % (star_name.replace(" ", ""), instrument_name)
+
+        return star_name, ra_val, dec_val, mjd_obs, wlen, flux, bary_correc
+
 def ReadSpec_txt(txt_file):
 
         """Read in spectrum from tab separated txt file in Angstroms"""
@@ -496,20 +432,16 @@ def ReadSpec_txt(txt_file):
         
 
 
-#def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
-#                       bary_correc, wlen_unit='A', plot_flag=False):
+
 def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
-                        bary_correc, wlen_unit='A', plot_flag=True):
-        #wlen_obs=wlen_obs[(wlen_obs > 4400.) and (wlen_obs < 5800.)]
-        #flux_obs=flux_obs[(wlen_obs > 4400.) and (wlen_obs < 5800.)]
+                        bary_correc, wlen_unit='A', plot_flag=False,
+                        vel_step=1.0, vel_range_min=-150, vel_range_max=150, 
+                        wlen_step=0.02, ncpu=8):
+
         indi=np.argsort(wlen_obs)
         wlen_obs=wlen_obs[indi]
         flux_obs=flux_obs[indi]
-        #print(min(wlen_obs))
-        #mascara= wlen_obs > 4950.
-        #wlen_obs=wlen_obs[mascara]
-        #flux_obs=flux_obs[mascara] 
-        #plt.plot(wlen_obs, flux_obs,label='first')
+
         # wlen_unit is important should either be 'A' for Angstrom
         # or 'N' for nanometers.  Mask should always be in Angstroms
         
@@ -553,7 +485,7 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         wlen_lin = np.arange(abs_min, abs_max, wlen_step)       
         
         # define central wavelength and wavelength range
-        central_wlen = wlen_lin[int(len(wlen_lin) / 2.)]
+        central_wlen = wlen_lin[int(len(wlen_lin) // 2)]
         wlen_range = abs_max - abs_min
 
         
@@ -572,8 +504,19 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         poly_flux = f(wlen_lin)
         #plt.plot(wlen_lin,poly_flux, label='cont')
         
+        # Safety check for continuum normalization
+        if np.any(poly_flux <= 0) or np.any(np.isnan(poly_flux)) or np.any(np.isinf(poly_flux)):
+            print("Warning: Problematic continuum fit detected")
+            print("Using median flux for normalization instead")
+            poly_flux = np.median(flux_obs_lin)
+        
         # divide by poly_flux to 'flatten' spectrum
         flux_obs_lin = flux_obs_lin / poly_flux
+        
+        # Check for extreme values after continuum normalization
+        if np.any(np.abs(flux_obs_lin) > 10):
+            print(f"Warning: Extreme flux values after normalization (range: {np.min(flux_obs_lin):.3f} to {np.max(flux_obs_lin):.3f})")
+            print("This may cause large CCF values")
         
         # set the continuum to 1
         median_flux = np.median(flux_obs_lin)
@@ -582,10 +525,13 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         
         
         # plot spectrum if plot_flag is True
-        if plot_flag == True:
-                #plt.plot(wlen_obs, flux_obs, label='second', alpha=0.5)
-                plt.plot(wlen_lin, flux_obs_lin, alpha=0.5)
-                #plt.legend()
+        if plot_flag: 
+                plt.figure(figsize=(10, 4))
+                plt.plot(wlen_lin, flux_obs_lin, alpha=0.7, label='Processed spectrum')
+                plt.xlabel('Wavelength (Å)')
+                plt.ylabel('Normalized flux')
+                plt.title('Spectrum after continuum normalization')
+                plt.legend()
                 plt.show()
         
         
@@ -616,11 +562,11 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
                         non_abs_wlen.append(w)
         
         # define bin size
-        bin_size = int(len(non_abs_spec) / 50.)
+        bin_size = int(len(non_abs_spec) // 50)
 
         
         # get central wavelength
-        cent_wlen = wlen_lin[int(len(wlen_lin)/2)]
+        cent_wlen = wlen_lin[int(len(wlen_lin)//2)]
         
         # create array using binning
         t = 0
@@ -649,6 +595,9 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         # print (SNR)
         print ("\nS/N ratio estimated at: %.1f..." % snr_median)
         
+        # Use configurable velocity range instead of global variable
+        vel_range = np.arange(vel_range_min, vel_range_max, vel_step)
+        
         # convert the wavelength to km
         wlen_lin_km = np.asarray(wlen_lin) * 1e-13      
         
@@ -663,7 +612,7 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
                         
         for vel in vel_range:
                 # make sure it's floats
-                vel = np.float(vel)
+                vel = float(vel)  # Fixed: Changed from np.float(vel)
                 
                 
                 # print (out something every 20 km/s)
@@ -686,11 +635,33 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
                 
                 #make shifted wavelength array          
                 wlen_mask_km_shifted = \
-                np.asarray([np.float(w)-((vel * w)/c) for w in wlen_lin_km])
+                np.asarray([float(w)-((vel * w)/c) for w in wlen_lin_km])  # Fixed: Changed from np.float(w)
+# ******************************************************************************************
+# ******************************************************************************************
+# ******************************************************************************************
 
 
-                # split up array for parallelisation
-                N = int(len(wlen_mask_km_shifted)/NCPU)
+                # make sure the arrays are numpy arrays
+                flux_mask_lin = np.asarray(flux_mask_lin, dtype=float)
+                wlen_lin = np.asarray(wlen_lin, dtype=float)
+                flux_obs_lin = np.asarray(flux_obs_lin, dtype=float)
+                
+
+# ******************************************************************************************
+# ******************************************************************************************
+# ******************************************************************************************
+#
+
+                #Python way to make CCF         
+                t0=time.time()  
+                
+                #make shifted wavelength array          
+                wlen_mask_km_shifted = \
+                np.asarray([float(w)-((vel * w)/c) for w in wlen_lin_km])  # Fixed: Changed from np.float(w)
+
+
+                                # split up array for parallelisation
+                N = int(len(wlen_mask_km_shifted)//ncpu)
         
         # make chunks of arrays for each input array
                 wlen_mask_chunk = [wlen_mask_km_shifted[i:i + N] \
@@ -755,16 +726,52 @@ def make_ccf(wlen_obs, flux_obs, wlen_mask, flux_mask, \
         # normalise by the median of the CCF i.e. where
         # the match is 'perfect' i.e. at 1
         #print (norm_xcorr)
-        norm_xcorr = all_xcorr / np.nanmedian(all_xcorr)
+        
+        # Convert to numpy array for safer operations
+        all_xcorr = np.array(all_xcorr)
+        
+        # Robust normalization with safety checks
+        median_xcorr = np.nanmedian(all_xcorr)
+        
+        # Check for problematic median values
+        if median_xcorr == 0 or np.isnan(median_xcorr) or np.isinf(median_xcorr):
+            print(f"Warning: Problematic median CCF value: {median_xcorr}")
+            print("Using alternative normalization...")
+            # Use mean of non-zero values as fallback
+            non_zero_vals = all_xcorr[all_xcorr != 0]
+            if len(non_zero_vals) > 0:
+                median_xcorr = np.nanmean(non_zero_vals)
+            else:
+                median_xcorr = 1.0  # Last resort
+                
+        # Check for extreme values before normalization
+        max_xcorr = np.nanmax(np.abs(all_xcorr))
+        if max_xcorr > 1e6:  # Arbitrary large threshold
+            print(f"Warning: Very large CCF values detected (max: {max_xcorr:.2e})")
+            print("This may indicate mask-spectrum mismatch or processing issues")
+        
+        norm_xcorr = all_xcorr / median_xcorr
+        
+        # Additional safety check after normalization
+        if np.any(np.abs(norm_xcorr) > 1e3):
+            print("Warning: Extremely large normalized CCF values detected")
+            # Apply clipping to prevent runaway values
+            norm_xcorr = np.clip(norm_xcorr, -1e3, 1e3)
+            
         norm_xcorr = (norm_xcorr - np.nanmedian(norm_xcorr)) * -1
         
         # apply barycentric correction
         vel_range_correc = vel_range + bary_correc
         
         
-        # plot          
-        if plot_flag:
-                plt.plot(vel_range_correc, norm_xcorr)
+        # plot CCF if plot_flag is True          
+        if plot_flag:  # ✅ Fixed: consistent boolean check
+                plt.figure(figsize=(10, 4))
+                plt.plot(vel_range_correc, norm_xcorr, 'b-', linewidth=2)
+                plt.xlabel('Velocity (km/s)')
+                plt.ylabel('CCF')
+                plt.title('Cross-Correlation Function')
+                plt.grid(True, alpha=0.3)
                 plt.show()
         
                 
@@ -796,16 +803,13 @@ def get_gray_profiles(min_vel, max_vel):
                 # and the v sin i profiles have continua set to zero
                 # and positive increases 
                 
-                #vsini_profile = [(float(v.replace("D", "e"))-1) * -1  for v in vsini_profile]
-                #vsini_profile.tobytes()
-                #vsini_profile = [bytes(v, 'utf-8')  for v in vsini_profile]
-                #print(type(vsini_profile[0]))
-                vsini_profile = [v.decode('UTF-8')  for v in vsini_profile]
-                vsini_profile = [v.replace("D", "e")  for v in vsini_profile]
-                #print(type(vsini_profile[0]))
-                #print(vsini_profile[0])
-                #vsini_profile = [bytes(v.encode('utf-8'))  for v in vsini_profile]
-                vsini_profile = [(float(v)-1) * -1  for v in vsini_profile]
+                # Handle byte strings properly for Python 3 compatibility
+                if isinstance(vsini_profile[0], bytes):
+                    vsini_profile = [v.decode('UTF-8') for v in vsini_profile]
+                    vsini_vel = [v.decode('UTF-8') for v in vsini_vel]
+                
+                vsini_profile = [v.replace("D", "e") for v in vsini_profile]
+                vsini_profile = [(float(v)-1) * -1 for v in vsini_profile]
                 vsini_vel = [float(v) for v in vsini_vel]
                 
                 # only keep values between min and max velocities
@@ -826,7 +830,7 @@ def get_gray_profiles(min_vel, max_vel):
                 
 
 
-def get_vsini(vel, ccf):
+def get_vsini(vel, ccf, vsini_step=1):
         
         """A function that fits the inputted
         ccf profile with a set of Gray profiles
@@ -875,8 +879,6 @@ def get_vsini(vel, ccf):
                 r = zero_point_idx
                 new_max_vel=[]
                 while r <= len(vsini_prof)-1:
-                        #print(vsini_prof[r])
-                        #print(type(vsini_prof[r]))
                         if vsini_prof[r] < 0.01:
                                 new_max_vel.append(r)
                         r=r+1
@@ -903,9 +905,7 @@ def get_vsini(vel, ccf):
                 
                 # now use min_vel_val and max_vel_val to constrain
                 # how much of the profile is fitted
-                new_min_vel_val, new_max_vel_val = int(new_min_vel_val), \
-                                                                                        int(new_max_vel_val)
-                
+                new_min_vel_val, new_max_vel_val = int(new_min_vel_val), int(new_max_vel_val)
                 
         
                 # make array of residuals squared for each 'stretch' factor
@@ -946,10 +946,7 @@ def get_vsini(vel, ccf):
         
         stretch_fact = stretch_factors[idx_vsini]
         calc_vsini_val = vsini_values[idx_vsini]
-#       
-#       print ("\nBest fit vsini value: %i km/s\n" % calc_vsini_val)
-        
-        #return calc_vsini_val, min_resid_val
+
         
         return vel_shifted, ccf, vsini_vels[idx_vsini], \
         np.asarray(vsini_profiles[idx_vsini]) * stretch_factors[idx_vsini], \
@@ -958,7 +955,7 @@ def get_vsini(vel, ccf):
 
 
 
-def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
+def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs, vsini_step=1):
         
         # function to fit Gaussian to the xcorr
         # data in order to compute RV and sigma 
@@ -980,7 +977,7 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
 
         # write CCF in a file
         perfil=np.column_stack((data_x,data_y))
-        ccf_output = "./OUTPUTS/ccf_%s_%s.csv" % (obj_name, mask_type)
+        ccf_output = "./OUTPUTS/ccf_%s_%s_%s.csv" % (obj_name, mask_type,str(mjd_obs).replace(".","_"))
         ascii.write(perfil,output=ccf_output, format='csv',overwrite=True, names=['vel','ccf'])
         
         # initial guess parameters
@@ -1138,12 +1135,15 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         # vsini part
         vel_shifted, ccf, vsini_vel, \
         vsini_profile, vsini_values, residuals_sum_all, \
-        vsini_calc_val, min_chi, stretch_fact = get_vsini(data_x, data_y)
+        vsini_calc_val, min_chi, stretch_fact = get_vsini(data_x, data_y, vsini_step)
         
         
         # now make a plot of the results
         fig=plt.figure(num=None, figsize=(11, 11), dpi=80, facecolor='w', \
-        edgecolor='k', tight_layout=True)
+        edgecolor='k')
+        
+        # Add manual spacing control
+        plt.subplots_adjust(hspace=0.35, wspace=0.3)
         
         # first panel
         ax=fig.add_subplot(2,2,1)
@@ -1156,7 +1156,7 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         plt.xlabel("Velocity (km/s)")
         plt.xlim(min(x_lin), max(x_lin))
         plt.ylabel("CCF")
-        plt.ylim(-0.01, max(depth_array)+0.01)
+        plt.ylim(min(data_y)-0.01, max(data_y)+0.01)
         plt.legend(frameon=False, loc='best', fontsize=12)
         plt.gca().invert_yaxis()
         
@@ -1247,14 +1247,14 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
         # plot output
         #plot_output = "./OUTPUTS/PDFS/ccf_%s_%s.pdf" % (obj_name, mask_type)
         plot_output = "./OUTPUTS/PDFS/ccf_%s_%s_%s.pdf" % (obj_name, mask_type, str(mjd_obs))
-        plt.savefig(plot_output)
+        plt.savefig(plot_output, bbox_inches='tight', pad_inches=0.1)
         print ("Made a plot at: %s..." % plot_output)
         
         plt.close()
         
         # print (RV and sigma)
-        print ("\n**************\nRV: %.1f" % centroid)
-        print ("Sigma: %.2f\n**************" % sigma)
+        print ("\n**************\nRV: %.3f" % centroid)
+        print ("Sigma: %.3f\n**************" % sigma)
         
         # define radial velocity and sigma
         rv = centroid
@@ -1266,7 +1266,35 @@ def fit_gaussian(obj_name, mask_type, data_x, data_y, mjd_obs):
 
 # now define one function that calls all the other functions
 
-def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument='UVES'):
+def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument='HARPS',
+                         vel_step=1.0, vel_range_min=-150, vel_range_max=150, 
+                         vsini_step=1, wlen_step=0.02, ncpu=8, plot_flag=False):
+        """
+        Master function to perform CCF analysis and vsini determination
+        
+        Parameters:
+        -----------
+        file_location : str
+            Path to the FITS file to analyze
+        flag : str, default='fits'
+            File type ('fits' or 'txt')
+        mask_type : str, default='K0'
+            Stellar mask to use (K0, M4, R50G2, F0, etc.)
+        instrument : str, default='HARPS'
+            Instrument type (UVES, HARPS, NIRPS, FEROS, XSHOOTER, etc.)
+        vel_step : float, default=1.0
+            Velocity step size in km/s for CCF calculation
+        vel_range_min : int, default=-150
+            Minimum velocity for CCF range in km/s
+        vel_range_max : int, default=150
+            Maximum velocity for CCF range in km/s
+        vsini_step : int, default=1
+            Step size for vsini profile fitting
+        wlen_step : float, default=0.02
+            Wavelength step size in Angstroms for interpolation
+        ncpu : int, default=8
+            Number of CPUs to use for parallel processing
+        """
 
         print ("\nStarting CCF and Vsin(i) procedure...")
 
@@ -1275,12 +1303,9 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
                 if instrument == 'ELODIE':
                         obj_name, ra_deg, dec_deg, mjd_obs, \
                         wlen_obs, flux_obs, bary_correc = ReadSpec_ELODIE_fits(file_location)
-                if instrument == 'XSHOO_PH3':
+                if instrument == 'XSHOO':
                         obj_name, ra_deg, dec_deg, mjd_obs, \
-                        wlen_obs, flux_obs, bary_correc = ReadSpec_XSHOO_PH3_fits(file_location)
-                if instrument == 'UVES_PH3':
-                        obj_name, ra_deg, dec_deg, mjd_obs, \
-                        wlen_obs, flux_obs, bary_correc = ReadSpec_UVES_PH3_fits(file_location)
+                        wlen_obs, flux_obs, bary_correc = ReadSpec_XSHOO_fits(file_location)
                 if instrument == 'UVES':
                         obj_name, ra_deg, dec_deg, mjd_obs, \
                         wlen_obs, flux_obs, bary_correc = ReadSpec_UVES_fits(file_location)
@@ -1292,8 +1317,10 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
                         wlen_obs, flux_obs, bary_correc = ReadSpec_FEROS_fits(file_location)                    
                 if instrument == 'HARPS':
                         obj_name, ra_deg, dec_deg, mjd_obs, \
-                        wlen_obs, flux_obs, bary_correc = ReadSpec_HARPS_fits(file_location)                    
-                        
+                        wlen_obs, flux_obs, bary_correc = ReadSpec_HARPS_fits(file_location)
+                if instrument == 'NIRPS':  # Added NIRPS support
+                        obj_name, ra_deg, dec_deg, mjd_obs, \
+                        wlen_obs, flux_obs, bary_correc = ReadSpec_NIRPS_fits(file_location)
                                                 
         if flag == 'txt':
                 obj_name, wlen_obs, flux_obs, bary_correc = ReadSpec_txt(file_location) 
@@ -1303,7 +1330,7 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         print ("Got info for object: %s..." % obj_name)
         print ("Barycentric correction is %.3f km/s" % bary_correc)
 
-        # now get mask (default value is 'M4')
+        # now get mask (default value is 'K0')
         wlen_mask, flux_mask = get_mask(mask_type)
         
         print ("Got Mask of type %s..." % mask_type)
@@ -1312,16 +1339,14 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         print ("Will now perform CCF fit for velocities...")
         velocity, ccf_profile, snr_median, central_wlen, wlen_range = \
         make_ccf(wlen_obs, flux_obs, wlen_mask, \
-                 flux_mask, bary_correc, wlen_unit='A', plot_flag=False)
+                 flux_mask, bary_correc, wlen_unit='A', plot_flag=False,
+                 vel_step=vel_step, vel_range_min=vel_range_min, vel_range_max=vel_range_max,
+                 wlen_step=wlen_step, ncpu=ncpu)
         
         print ("\nNow going to fit CCF with a Gaussian...")
-        #mjd_obs = 2014.46838
-        #print (mjd_obs)
-        # fit Gaussian to CCF
-        #plt.plot(velocity,ccf_profile)
-        #plt.show()
+        
         rv, width, depth, vsini_calc_val, min_chi, \
-        BIS, b_b, stderr, c_b, ad_sig = fit_gaussian(obj_name, mask_type, velocity, ccf_profile, mjd_obs)
+        BIS, b_b, stderr, c_b, ad_sig = fit_gaussian(obj_name, mask_type, velocity, ccf_profile, mjd_obs, vsini_step)
 
 
         print ("\nFinally I will fit the CCF with vsini rotational profiles...")
@@ -1330,10 +1355,9 @@ def master_make_ccf_vsini(file_location, flag='fits', mask_type='K0', instrument
         
         print ("************************************")
         print ("Summary of results:")
-        print ("\nRV: %.1f, sigma: %.1f, vsini: %i km/s" % (rv, width, vsini_calc_val))
+        print ("\nRV: %.2f, sigma: %.2f, vsini: %i km/s" % (rv, width, vsini_calc_val))
         print ("************************************\n")
-        #ra_deg=241.7980833
-        #dec_deg=-39.0626944
+        
         return obj_name, ra_deg, dec_deg, mjd_obs, rv, width, depth, vsini_calc_val, \
         min_chi, snr_median, central_wlen, wlen_range, BIS, b_b, stderr, c_b, ad_sig
 
