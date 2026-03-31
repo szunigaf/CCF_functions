@@ -1,0 +1,70 @@
+# ============================================================
+# CCF Functions - .gitignore
+# ============================================================
+
+# ----- Python -----------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.py~
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# ----- Jupyter ----------------------------------------------
+.ipynb_checkpoints/
+*.nbconvert.*
+
+# ----- macOS ------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ----- Outputs (generated files) ----------------------------
+# Keep directory structure but ignore generated content
+OUTPUTS/*.csv
+OUTPUTS/*.txt
+OUTPUTS/PDFS/*.pdf
+
+# ----- Large / raw data (FITS files) ------------------------
+# Spectral data directories - these are large binary files
+# Comment out the lines below if you WANT to track sample data
+ELODIE/*.fits
+FEROS/*.fits
+FEROS_collection/
+HARPS/*.fits
+HARPS_collection/
+INPUT/*.fits
+NIRPS/*.fits
+NIRPS_test/
+UVES/*.fits
+UVES_comb/*.fits
+XSHOOTER/*.fits
+
+# ----- Editor / IDE -----------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ----- Misc -------------------------------------------------
+*.log
+*.tmp
+python_compatibility_report.md
+CONFIGURABLE_PARAMETERS_SUMMARY.md
+CCF_RVs.ipynb
+ccf_config.ini
+CCF_Analysis_Interactive_V2.ipynb
+bash_example.sh

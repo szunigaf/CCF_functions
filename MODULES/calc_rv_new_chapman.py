@@ -85,7 +85,12 @@ def get_mask(SpT):
                         if SpT == 'M2' or SpT =='M5_5_IR' or SpT =='M2_IR':
                                 wlen1, wlen2, prof = data
                         else:
-                                wlen1, wlen2, prof, wlen_av = data
+                                if SpT == "K2_IR":
+                                        wlen1, wlen2, prof = data
+                                        wlen1 = wlen1*10.  # convert to Angstroms
+                                        wlen2 = wlen2*10.  # convert to Angstroms
+                                else:
+                                        wlen1, wlen2, prof, wlen_av = data
 
                 
         else:
@@ -93,7 +98,10 @@ def get_mask(SpT):
         
         wlen_arr, flux_arr = [], []
         for w in np.arange(0, len(wlen1)-1, 1):
-                
+         # Converts absorption line ranges (defined by wlen1 and wlen2) 
+         # into a piecewise mask suitable for cross-correlation.
+         # For each absorption line it creates 4 points that define a rectangular profile.
+         #
                 wlen_arr.append(wlen1[w])
                 wlen_arr.append(wlen2[w])
                 wlen_arr.append(wlen2[w]+0.001)

@@ -20,7 +20,7 @@ def parse_arguments():
     parser.add_argument('--data_dir', type=str, default='./INPUT/', 
                        help='Directory containing FITS files (default: ./INPUT/)')
     parser.add_argument('--mask', type=str, default='K0', 
-                       choices=['K0', 'K5', 'M0', 'M2', 'M4', 'M5', 'R50G2', 'G2', 'F0','M2_IR','M_5_IR'],
+                       choices=['K0', 'M2', 'M4', 'R50G2', 'F0', 'K2_IR', 'M2_IR','M_5_IR'],
                        help='Mask type for CCF analysis (default: K0)')
     parser.add_argument('--instrument', type=str, default='HARPS',
                        choices=['HARPS', 'NIRPS', 'UVES', 'UVES_combine', 'FEROS', 'XSHOO', 'ELODIE'],
